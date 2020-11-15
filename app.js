@@ -7,6 +7,9 @@ const { graphqlHTTP } = require('express-graphql');
 
 const graphqlSchema = require('./graphql/schema');
 const graphqlResolver = require('./graphql/resolvers');
+const { clearImage } = require('./utils/file');
+
+const auth = require('./middleware/auth');
 
 const MONGODB_URL = 'mongodb+srv://yjiang:5HDK2vdWnsJwNri2@cluster0-3fkqz.mongodb.net/messages';
 
@@ -43,11 +46,26 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use(auth);
+
+app.put('/post-image', (req, res, next) => {
+    if (!req.isAuth) {
+        return new Error('Not authenticated');
+    }
+    if (!req.file) {
+        return res.status(200).json({ message: 'No file provided' });
+    }
+    if (req.body.oldPath) {
+        clearImage(req.body.oldPath);
+    }
+    return res.status(201).json({ message: 'File stored', filePath: req.file.path });
+});
+
 app.use('/graphql', graphqlHTTP({
     schema: graphqlSchema,
     rootValue: graphqlResolver,
     graphiql: true,
-    customFormatErrorFn(err) {
+    customFormatErrorFn: function (err) {
         if (!err.originalError) {
             return err;
         }
@@ -58,6 +76,7 @@ app.use('/graphql', graphqlHTTP({
     }
 }));
 
+/*
 app.use((error, req, res, next) => {
     console.log(error);
     const status = error.statusCode || 500;
@@ -65,6 +84,7 @@ app.use((error, req, res, next) => {
     const data = error.data;
     res.status(status).json({ message, data });
 });
+*/
 
 mongoose
     .connect(MONGODB_URL)
